@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>คัดแยกค่าลงทะเบียน</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a working desk — the student roster (kept in the database) and the finance file feed one sorted ledger below */
+:root{
+  --bg:#f3f6fb; --surface:#ffffff; --surface-2:#eaf0f8; --line:#d5dde9; --fg:#162033; --muted:#566178;
+  --accent:#1d4ed8; --accent-fg:#ffffff; --accent-soft:#e2eafc;
+  --ok:#11734f; --ok-soft:#dcf2e8; --warn:#a8510a; --warn-soft:#fbe9d6; --bad:#b42318; --bad-soft:#fde3df;
+  --display:"Anuphan","IBM Plex Sans Thai","Leelawadee UI","Tahoma",sans-serif;
+  --body:"IBM Plex Sans Thai","Leelawadee UI","Tahoma",sans-serif;
+  --mono:"IBM Plex Mono","Consolas",monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1320; --surface:#151c2b; --surface-2:#1c2537; --line:#2a3550; --fg:#e5e9f2; --muted:#9ba6bc;
+  --accent:#7fa3ff; --accent-fg:#0e1320; --accent-soft:#1e2a4c;
+  --ok:#4fc79b; --ok-soft:#12342a; --warn:#f2a65e; --warn-soft:#3a2715; --bad:#ff8b7e; --bad-soft:#3e1b18; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1320; --surface:#151c2b; --surface-2:#1c2537; --line:#2a3550; --fg:#e5e9f2; --muted:#9ba6bc;
+  --accent:#7fa3ff; --accent-fg:#0e1320; --accent-soft:#1e2a4c;
+  --ok:#4fc79b; --ok-soft:#12342a; --warn:#f2a65e; --warn-soft:#3a2715; --bad:#ff8b7e; --bad-soft:#3e1b18; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.6}
+.wrap{max-width:1120px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:28px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:1.75rem;font-weight:700}
+h2{font-size:1.2rem;font-weight:600}
+h3{font-size:1rem;font-weight:600}
+.eyebrow{font-size:.78rem;letter-spacing:.06em;color:var(--muted);font-weight:500}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header.top{display:grid;gap:6px}
+header.top p{margin:0;max-width:70ch;color:var(--muted)}
+
+.sample-bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--warn-soft);color:var(--fg);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent);border-radius:10px;padding:10px 14px;font-size:.9rem}
+.sample-bar strong{color:var(--warn)}
+
+.trays{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.tray{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px;align-content:start;min-width:0}
+.tray-head{display:flex;gap:12px;align-items:flex-start}
+.tray-num{flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-family:var(--display);font-weight:700}
+.tray-head p{margin:2px 0 0;font-size:.88rem;color:var(--muted)}
+.tag{display:inline-block;font-size:.72rem;font-weight:500;padding:0 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);vertical-align:middle;margin-left:6px}
+.drop{display:flex;align-items:center;gap:12px;border:1.5px dashed var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;background:var(--surface-2);transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.drop:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.drop .file{font-weight:500;overflow-wrap:anywhere;min-width:0}
+.drop .hint{font-size:.82rem;color:var(--muted)}
+.btn{font:inherit;font-weight:500;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:7px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.btn.small{padding:4px 10px;font-size:.85rem}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+.db-box{border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:8px;background:var(--surface-2)}
+.db-count{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.db-count .v{font-family:var(--display);font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums}
+.db-meta{font-size:.84rem;color:var(--muted);overflow-wrap:anywhere}
+.lvl-chips{display:flex;flex-wrap:wrap;gap:6px}
+.lvl-chips span{font-size:.8rem;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:1px 10px;font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:middle}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+
+.import{display:grid;gap:12px;border-top:1px dashed var(--line);padding-top:14px}
+.modes{display:grid;gap:6px}
+.modes label{display:flex;gap:8px;align-items:flex-start;font-size:.9rem;cursor:pointer}
+.modes input{margin-top:5px}
+.preview{font-size:.88rem;background:var(--accent-soft);border-radius:8px;padding:8px 12px}
+.preview.err{background:var(--bad-soft);color:var(--bad)}
+
+.map{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px}
+.field{display:grid;gap:3px;min-width:0}
+.field label{font-size:.8rem;color:var(--muted)}
+.field label .req{color:var(--bad)}
+select,input[type=number],input[type=search]{font:inherit;font-size:.9rem;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:100%;min-width:0}
+.map-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82rem;color:var(--muted);margin-top:8px}
+
+.desk{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.desk-head{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.controls label{display:flex;gap:6px;align-items:center;font-size:.9rem}
+.controls select{width:auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-bottom:1px solid var(--line)}
+.stat{padding:14px 18px;display:grid;gap:2px;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0}
+.stat .v{font-family:var(--display);font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .k{font-size:.82rem;color:var(--muted)}
+.stat.ok .v{color:var(--ok)} .stat.warn .v{color:var(--warn)} .stat.bad .v{color:var(--bad)}
+button.stat{font:inherit;color:inherit;background:none;border:0;border-right:1px solid var(--line);text-align:left;cursor:pointer}
+button.stat:hover{background:var(--surface-2)}
+
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:500;font-size:.8rem;color:var(--muted);background:var(--surface-2)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr.grp{cursor:pointer}
+tbody tr.grp:hover{background:var(--surface-2)}
+tbody tr.grp.sel{background:var(--accent-soft)}
+tbody tr.grp:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+tr.total td{font-weight:600;background:var(--surface-2)}
+.lvl{display:inline-block;font-family:var(--display);font-weight:600;min-width:52px}
+.bar{display:flex;align-items:center;gap:8px;min-width:140px}
+.bar i{flex:1;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;display:block;border:1px solid var(--line)}
+.bar i b{display:block;height:100%;background:var(--ok)}
+.bar span{font-variant-numeric:tabular-nums;min-width:42px;text-align:right;font-size:.85rem}
+
+.pill{display:inline-block;padding:1px 10px;border-radius:999px;font-size:.8rem;font-weight:500}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+
+.detail{display:grid;border-top:1px solid var(--line)}
+.detail-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:16px 18px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:3px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.detail-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.detail-tools input{width:220px;max-width:100%}
+.empty{padding:28px 18px;color:var(--muted);text-align:center}
+.note{padding:14px 18px;font-size:.88rem;color:var(--muted);border-top:1px solid var(--line);display:grid;gap:4px}
+.note p{margin:0}
+.msg{padding:28px 18px;color:var(--muted);display:grid;gap:4px;justify-items:start}
+.msg strong{color:var(--fg);font-family:var(--display);font-size:1.05rem}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:10px;font-size:.9rem;box-shadow:0 6px 24px rgba(0,0,0,.2);max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:560px){.stat{border-right:0;border-bottom:1px solid var(--line)} button.stat{border-right:0}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">งานทะเบียน · เครื่องมือคัดแยกรายชื่อ</span>
+    <h1>คัดแยกผู้ชำระค่าลงทะเบียน ตามระดับชั้นและสาขาวิชา</h1>
+    <p>รายชื่อนักเรียนทั้งหมดเก็บไว้ในฐานข้อมูลของหน้านี้ นำเข้าครั้งเดียวแล้วใช้ต่อได้ทุกภาคเรียน แต่ละภาคเรียนเพียงอัปโหลดไฟล์ Excel จากงานการเงิน ระบบจะแยกให้ว่าใครอยู่ชั้นไหน สาขาอะไร ชำระแล้วหรือยังค้าง ไฟล์จากงานการเงินประมวลผลในเบราว์เซอร์เท่านั้นและไม่ถูกบันทึก</p>
+  </header>
+
+  <div class="sample-bar" id="sampleBar" hidden>
+    <span><strong>กำลังแสดงข้อมูลตัวอย่าง</strong> รายชื่อและยอดเงินด้านล่างเป็นข้อมูลสมมติ ไม่ได้บันทึกลงฐานข้อมูล</span>
+    <button class="btn small" id="clearSample" type="button">ปิดข้อมูลตัวอย่าง</button>
+  </div>
+
+  <section class="trays" aria-label="ข้อมูลที่ใช้คัดแยก">
+    <div class="tray" id="tray-db">
+      <div class="tray-head">
+        <span class="tray-num">1</span>
+        <div><h2>ฐานข้อมูลนักเรียน <span class="tag">บันทึกถาวร</span></h2><p>รายชื่อนักเรียนทุกคนพร้อมระดับชั้น สาขาวิชา และกลุ่มเรียน อัปเดตเมื่อมีนักเรียนใหม่หรือขึ้นปีการศึกษาใหม่</p></div>
+      </div>
+      <div class="db-box" id="dbStatus" aria-live="polite"></div>
+      <div class="import" id="importBox" hidden>
+        <label class="drop" id="drop-master">
+          <input type="file" id="file-master" accept=".xlsx,.xls,.csv" multiple>
+          <span class="btn small" aria-hidden="true">เลือกไฟล์</span>
+          <span style="min-width:0"><span class="file" id="name-master">เลือกไฟล์รายชื่อนักเรียน</span><br><span class="hint">รายงานรายชื่อแยกตามกลุ่มจาก RMS เลือกได้หลายไฟล์พร้อมกัน (ปวช.1 ถึง ปวส.2) หรือไฟล์ Excel ทั่วไป</span></span>
+        </label>
+        <div id="map-master"></div>
+        <div class="modes" id="modes" hidden>
+          <label><input type="radio" name="mode" value="replace" id="mode-replace" checked><span><b>แทนที่รายชื่อเดิมทั้งหมด</b><br><span class="muted">ใช้ตอนขึ้นปีการศึกษาใหม่ ไฟล์ต้องมีนักเรียนครบทุกคน</span></span></label>
+          <label><input type="radio" name="mode" value="merge" id="mode-merge"><span><b>เพิ่มคนใหม่และอัปเดตคนที่มีอยู่</b><br><span class="muted">จับคู่ด้วยรหัสนักเรียน คนที่ไม่อยู่ในไฟล์ยังคงอยู่ในฐานข้อมูล</span></span></label>
+        </div>
+        <div id="importPreview"></div>
+        <div class="row">
+          <button class="btn primary" id="saveRoster" type="button" disabled>บันทึกลงฐานข้อมูล</button>
+          <button class="btn" id="cancelImport" type="button">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tray" id="tray-fin">
+      <div class="tray-head">
+        <span class="tray-num">2</span>
+        <div><h2>ไฟล์รับชำระเงินจากงานการเงิน <span class="tag">ทุกภาคเรียน</span></h2><p>รายการคนที่จ่ายค่าลงทะเบียนแล้ว ต้องมีรหัสนักเรียน หรืออย่างน้อยชื่อ-สกุล</p></div>
+      </div>
+      <label class="drop" id="drop-fin">
+        <input type="file" id="file-fin" accept=".xlsx,.xls,.csv">
+        <span class="btn small" aria-hidden="true">เลือกไฟล์</span>
+        <span style="min-width:0"><span class="file" id="name-fin">ยังไม่ได้เลือกไฟล์</span><br><span class="hint">.xlsx .xls .csv หรือลากไฟล์มาวางตรงนี้</span></span>
+      </label>
+      <div id="map-fin"></div>
+    </div>
+  </section>
+
+  <section class="desk" aria-label="ผลการคัดแยก">
+    <div class="desk-head">
+      <div><span class="eyebrow">ผลการคัดแยก</span><h2>สรุปตามระดับชั้นและสาขาวิชา</h2></div>
+      <div class="controls">
+        <label for="matchBy">จับคู่ด้วย
+          <select id="matchBy"><option value="id">รหัสนักเรียน</option><option value="nid">เลขประจำตัวประชาชน</option><option value="name">ชื่อ-สกุล</option></select>
+        </label>
+        <label for="byGroup"><input type="checkbox" id="byGroup"> แยกตามกลุ่มเรียนด้วย</label>
+        <button class="btn primary" id="exportBtn" type="button">ดาวน์โหลด Excel ที่แยกแล้ว</button>
+      </div>
+    </div>
+    <div id="results"></div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n||0).toLocaleString('th-TH',{maximumFractionDigits:2});
+const thCmp = (a,b) => String(a).localeCompare(String(b),'th',{numeric:true});
+const fmtDate = iso => { try { return new Date(iso).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}); } catch(e){ return ''; } };
+
+const FIELDS = {
+  fin: [
+    {k:'id', label:'รหัสนักเรียน'},
+    {k:'nid', label:'เลขประจำตัวประชาชน'},
+    {k:'name', label:'ชื่อ-สกุล'},
+    {k:'amount', label:'จำนวนเงิน'}
+  ],
+  master: [
+    {k:'id', label:'รหัสนักเรียน', req:true},
+    {k:'nid', label:'เลขประจำตัวประชาชน'},
+    {k:'name', label:'ชื่อ (หรือ ชื่อ-สกุล)', req:true},
+    {k:'surname', label:'นามสกุล (ถ้าแยกคอลัมน์)'},
+    {k:'level', label:'ระดับชั้น', req:true},
+    {k:'dept', label:'สาขาวิชา / ช่าง', req:true},
+    {k:'group', label:'กลุ่มเรียน'},
+    {k:'type', label:'ประเภทผู้เรียน'}
+  ]
+};
+
+/* Department names that mean the same department. Left side as it appears in the file, right side the name to use. */
+const DEPT_ALIASES = {
+  'ช่างไฟฟ้า': 'ไฟฟ้า',
+  'บัญชี': 'การบัญชี'
+};
+/* "บัญชี 1/3" → "บัญชี" (the class number is already in the group), then apply aliases */
+function normDept(d){
+  let s = String(d || '').replace(/\s+/g,' ').trim().replace(/\s+\d+\s*\/\s*\d+$/,'').trim();
+  return DEPT_ALIASES[s] || s;
+}
+const MATCH_LABEL = {id:'รหัสนักเรียน', nid:'เลขประจำตัวประชาชน', name:'ชื่อ-สกุล'};
+
+const S = {
+  fin:null, master:null,
+  dbStudents:[], students:[], meta:null,
+  dbState:'loading', canWrite:null, saving:null, confirmReplace:false,
+  sample:false, sampleFinBackup:null,
+  matchBy:'id', byGroup:false, selected:null, filter:'all', q:'', result:null
+};
+
+/* ---------- parsing ---------- */
+const cellStr = v => {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) return v.toLocaleDateString('th-TH');
+  return String(v).trim();
+};
+function readWorkbook(buf){
+  const wb = XLSX.read(buf, {type:'array', cellDates:true});
+  const sheets = {};
+  wb.SheetNames.forEach(n => {
+    sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, defval:'', raw:true, blankrows:false}).map(r => r.map(cellStr));
+  });
+  return {sheetNames: wb.SheetNames, sheets};
+}
+const KEYWORDS = /รหัส|ชื่อ|สกุล|ระดับ|ชั้น|สาขา|แผนก|ช่าง|กลุ่ม|จำนวน|เงิน|ยอด|ลำดับ|เลขที่|วันที่|ใบเสร็จ|id|name/i;
+function detectHeader(aoa){
+  let best = -1, bestScore = 1;
+  for (let i = 0; i < Math.min(aoa.length, 25); i++){
+    const score = aoa[i].filter(c => c && c.length < 40 && KEYWORDS.test(c)).length;
+    if (score > bestScore){ best = i; bestScore = score; }
+  }
+  if (best >= 0) return best;
+  const i = aoa.findIndex(r => r.filter(Boolean).length >= 2);
+  return i < 0 ? 0 : i;
+}
+function pick(headers, tests, exclude){
+  for (const t of tests){
+    const i = headers.findIndex(h => t.test(h) && !(exclude && exclude.test(h)));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+function autoMap(kind, headers){
+  const m = {};
+  m.id = pick(headers, [/รหัส.*(นัก|ประจำตัว)|เลขประจำตัว(?!ประชาชน)|student.?id/i, /รหัส/i, /^id$/i], /วิชา|สาขา|กลุ่ม|แผนก|ไปรษณีย์|บัตร|ประชาชน/);
+  m.nid = pick(headers, [/ประชาชน|เลขบัตร|citizen/i]);
+  m.name = pick(headers, [/ชื่อ.*สกุล/, /^ชื่อ$|ชื่อนัก|^ชื่อ/, /name/i], /สาขา|วิชา|กลุ่ม|ผู้รับ|ผู้ปกครอง|บิดา|มารดา/);
+  if (kind === 'master') m.type = pick(headers, [/ประเภทผู้เรียน|ประเภท/]);
+  if (kind === 'fin'){
+    m.amount = pick(headers, [/จำนวนเงิน|ยอดเงิน|ยอดชำระ/, /เงิน|ยอด|amount/i]);
+  } else {
+    m.surname = (m.name >= 0 && /สกุล/.test(headers[m.name])) ? -1 : pick(headers, [/นามสกุล|^สกุล/]);
+    m.level = pick(headers, [/ระดับชั้น|ชั้นปี/, /ระดับ|ชั้น|level/i]);
+    m.dept = pick(headers, [/สาขาวิชา|สาขางาน|แผนกวิชา/, /สาขา|แผนก|ช่าง|major/i], /รหัส/);
+    m.group = pick(headers, [/กลุ่มเรียน/, /กลุ่ม|ห้อง/], /รหัส/);
+  }
+  return m;
+}
+function makeSource(kind, fileName, wbData){
+  const sheet = wbData.sheetNames.find(n => wbData.sheets[n].length) || wbData.sheetNames[0];
+  const src = {fileName, ...wbData, sheet, headerRow:0, map:{}};
+  applySheet(kind, src, sheet);
+  return src;
+}
+function applySheet(kind, src, sheet){
+  src.sheet = sheet;
+  src.headerRow = detectHeader(src.sheets[sheet] || []);
+  src.map = autoMap(kind, headersOf(src));
+}
+function headersOf(src){
+  const aoa = src.sheets[src.sheet] || [];
+  const row = aoa[src.headerRow] || [];
+  const width = Math.max(row.length, ...aoa.slice(src.headerRow, src.headerRow + 30).map(r => r.length), 0);
+  return Array.from({length: width}, (_, i) => row[i] || ('คอลัมน์ ' + XLSX.utils.encode_col(i)));
+}
+function dataRows(src){
+  return (src.sheets[src.sheet] || []).slice(src.headerRow + 1).map((r, i) => ({r, line: src.headerRow + 2 + i})).filter(o => o.r.some(Boolean));
+}
+
+/* ---------- normalising ---------- */
+const normId = v => String(v||'').replace(/[\s\-'.]/g,'').replace(/^0+/,'').toUpperCase();
+const PREFIX = /^(นางสาว|นาง|นาย|น\.ส\.|นส\.|ด\.ช\.|ด\.ญ\.|เด็กชาย|เด็กหญิง|mr\.?|mrs\.?|ms\.?|miss)\s*/i;
+const normName = v => String(v||'').trim().replace(PREFIX,'').replace(/\s+/g,'').toLowerCase();
+const num = v => { const n = parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n) ? 0 : n; };
+const normNid = v => String(v||'').replace(/\D/g,'');
+const cleanNum = v => String(v ?? '').trim().replace(/\.0+$/,'');
+const keyOf = (s, by) => by === 'id' ? normId(s.id) : by === 'nid' ? normNid(s.nid) : normName(s.name);
+
+/* RMS "รายงานรายชื่อนักเรียนนักศึกษาแยกตามกลุ่ม": one sheet per class group,
+   level/group in "ชั้นปี" (e.g. ปวช.1/3), department in "ชื่อกลุ่มเรียน", students below the "รหัสประจำตัว" header */
+const tidy = v => String(v ?? '').replace(/\s+/g,' ').trim();
+function isRms(wbData){
+  return wbData.sheetNames.some(n => (wbData.sheets[n] || []).slice(0, 20).some(r => r.some(v => tidy(v) === 'รหัสกลุ่มเรียน')));
+}
+function parseRms(wbData){
+  const list = []; let sheets = 0, skipped = 0;
+  wbData.sheetNames.forEach(n => {
+    let code = '', dept = '', cls = '', cols = null;
+    (wbData.sheets[n] || []).forEach(row => {
+      const c = row.map(tidy);
+      const after = lab => { const k = c.indexOf(lab); if (k < 0) return ''; for (let j = k + 1; j < c.length; j++) if (c[j]) return c[j]; return ''; };
+      if (c.includes('รหัสกลุ่มเรียน')){ code = cleanNum(after('รหัสกลุ่มเรียน')); dept = after('ชื่อกลุ่มเรียน'); cols = null; return; }
+      if (c.includes('ชั้นปี')){ cls = after('ชั้นปี'); return; }
+      if (c.includes('รหัสประจำตัว')){
+        cols = {id:c.indexOf('รหัสประจำตัว'), nid:c.indexOf('รหัสประชาชน'), name:c.indexOf('ชื่อ - สกุล'), type:c.indexOf('ประเภทผู้เรียน')};
+        if (cols.name < 0) cols.name = c.findIndex(v => /ชื่อ/.test(v));
+        sheets++; return;
+      }
+      if (!cols) return;
+      const id = cleanNum(c[cols.id]);
+      if (!id) return;
+      if (!/^\d+$/.test(id)){ skipped++; return; }
+      const m = cls.match(/^(.+?)\s*\/\s*(\S+)$/);
+      list.push({
+        id, name: c[cols.name] || '',
+        level: m ? m[1] : (cls || '(ไม่ระบุชั้น)'), group: m ? m[2] : '-',
+        dept: normDept(dept) || '(ไม่ระบุสาขา)',
+        nid: cols.nid >= 0 ? cleanNum(c[cols.nid]) : '', type: cols.type >= 0 ? (c[cols.type] || '') : '', code
+      });
+    });
+  });
+  return {list, sheets, skipped};
+}
+function dedupe(list){
+  const seen = new Map(), out = []; let dup = 0;
+  list.forEach(s => { const k = normId(s.id); if (seen.has(k)){ dup++; out[seen.get(k)] = s; } else { seen.set(k, out.length); out.push(s); } });
+  return {list: out, dup};
+}
+
+/* Students from an imported roster → [{id,name,level,dept,group,nid,type,code}] */
+function studentsFromSource(src){
+  if (src.rms){ const d = dedupe(src.rms.list); return {missing:[], list:d.list, skipped:src.rms.skipped, dup:d.dup}; }
+  const m = src.map, raw = [];
+  let skipped = 0;
+  const missing = FIELDS.master.filter(f => f.req && !(m[f.k] >= 0)).map(f => f.label);
+  if (missing.length) return {missing, list:[], skipped, dup:0};
+  dataRows(src).forEach(({r}) => {
+    const id = cleanNum(r[m.id]);
+    const name = [r[m.name] || '', m.surname >= 0 ? (r[m.surname] || '') : ''].join(' ').replace(/\s+/g,' ').trim();
+    if (!normId(id) || !/\d/.test(id)){ skipped++; return; }
+    raw.push({id, name, level: tidy(r[m.level]) || '(ไม่ระบุชั้น)', dept: normDept(r[m.dept]) || '(ไม่ระบุสาขา)', group: m.group >= 0 ? (tidy(r[m.group]) || '-') : '-',
+      nid: m.nid >= 0 ? cleanNum(r[m.nid]) : '', type: m.type >= 0 ? tidy(r[m.type]) : '', code: ''});
+  });
+  const d = dedupe(raw);
+  return {missing, list:d.list, skipped, dup:d.dup};
+}
+
+/* ---------- matching ---------- */
+function compute(){
+  const fin = S.fin, roster = S.students;
+  if (!roster.length){
+    if (S.dbState === 'loading') return {wait:true, error:'กำลังโหลดรายชื่อนักเรียนจากฐานข้อมูล…'};
+    return {error:'ยังไม่มีรายชื่อนักเรียนในฐานข้อมูล', hint:'นำเข้าไฟล์รายชื่อนักเรียนในกล่องที่ 1 ก่อน ทำครั้งเดียวแล้วใช้ได้ทุกภาคเรียน'};
+  }
+  if (!fin) return {error:'อัปโหลดไฟล์รับชำระเงินจากงานการเงินในกล่องที่ 2', hint:`มีรายชื่อนักเรียนในฐานข้อมูลแล้ว ${fmt(roster.length)} คน พร้อมคัดแยก`};
+  const fm = fin.map, keyCol = S.matchBy;
+  if (!(fm[keyCol] >= 0)) return {error: `ยังไม่ได้เลือกคอลัมน์ "${MATCH_LABEL[keyCol]}" ของไฟล์การเงิน`, hint: 'เลือกคอลัมน์ในกล่องที่ 2 หรือเปลี่ยน "จับคู่ด้วย" เป็นข้อมูลที่ไฟล์การเงินมี'};
+  if (keyCol === 'nid' && !roster.some(s => s.nid)) return {error:'รายชื่อในฐานข้อมูลยังไม่มีเลขประจำตัวประชาชน', hint:'นำเข้ารายชื่อจาก RMS ใหม่ หรือเปลี่ยน "จับคู่ด้วย" เป็นรหัสนักเรียน'};
+
+  const students = [], index = new Map(), dupKeys = new Set();
+  roster.forEach(r => {
+    const s = {...r, paid:false, amount:0, times:0};
+    const key = keyOf(s, keyCol);
+    if (!key){ students.push(s); return; }
+    if (index.has(key)) dupKeys.add(key);
+    index.set(key, s);
+    students.push(s);
+  });
+
+  const unmatched = [];
+  dataRows(fin).forEach(({r, line}) => {
+    const id = fm.id >= 0 ? r[fm.id] : '', name = fm.name >= 0 ? r[fm.name] : '', nid = fm.nid >= 0 ? r[fm.nid] : '';
+    const key = keyOf({id, name, nid}, keyCol);
+    if (!key) return;
+    if (keyCol !== 'name' && !/\d/.test(key)) return; // skip subtotal / note rows
+    if (keyCol === 'nid' && key.length !== 13) return;
+    const amount = fm.amount >= 0 ? num(r[fm.amount]) : 0;
+    const s = index.get(key);
+    if (s){ s.paid = true; s.amount += amount; s.times++; }
+    else unmatched.push({id, name, amount, line});
+  });
+
+  const groups = new Map();
+  students.forEach(s => {
+    const gk = [s.level, s.dept, S.byGroup ? s.group : ''].join('\u0001');
+    if (!groups.has(gk)) groups.set(gk, {key:gk, level:s.level, dept:s.dept, group: S.byGroup ? s.group : '', list:[]});
+    groups.get(gk).list.push(s);
+  });
+  const glist = [...groups.values()].sort((a,b) => thCmp(a.level,b.level) || thCmp(a.dept,b.dept) || thCmp(a.group,b.group));
+  glist.forEach(g => {
+    g.list.sort((a,b) => thCmp(a.id,b.id) || thCmp(a.name,b.name));
+    g.paid = g.list.filter(s => s.paid).length;
+    g.amount = g.list.reduce((t,s) => t + s.amount, 0);
+  });
+  const paid = students.filter(s => s.paid).length;
+  return {students, groups: glist, unmatched, paid, dup: dupKeys.size, multi: students.filter(s => s.times > 1).length};
+}
+
+/* ---------- database ---------- */
+let db = null, downloads = null, loadedV = null, loadTimer = null;
+const CHUNK = 300;
+function startDb(){
+  const c = window.claude;
+  if (!c || typeof c.use !== 'function'){ noDb(); return; }
+  loadTimer = setTimeout(() => { if (S.dbState === 'loading'){ S.dbState = 'timeout'; renderDb(); update(); } }, 10000);
+  c.use('downloads').then(d => { downloads = d; }).catch(() => {});
+  c.use('user').then(async u => {
+    if (!u){ S.canWrite = null; return; }
+    try { S.canWrite = await u.canEdit(); } catch(e){ S.canWrite = null; }
+    renderDb();
+  }).catch(() => {});
+  c.use('db').then(d => {
+    if (!d){ clearTimeout(loadTimer); noDb(); return; }
+    db = d;
+    db.doc('meta/roster').onSnapshot(snap => {
+      if (!snap.exists){
+        if (!snap.metadata.fromCache){ clearTimeout(loadTimer); S.meta = null; S.dbStudents = []; loadedV = null; S.dbState = 'empty'; syncStudents(); }
+        return;
+      }
+      const meta = snap.data();
+      S.meta = meta;
+      if (meta.v !== loadedV) loadChunks(meta, 0);
+      else if (!snap.metadata.fromCache){ clearTimeout(loadTimer); }
+    }, err => { clearTimeout(loadTimer); S.dbState = 'error'; S.dbError = err && err.code; renderDb(); update(); });
+  }).catch(() => noDb());
+}
+async function loadChunks(meta, attempt){
+  try {
+    const q = await db.collection('roster').where('v', '==', meta.v).get();
+    const docs = q.docs.map(d => d.data()).sort((a,b) => a.i - b.i);
+    if (docs.length < meta.chunks){
+      if (attempt < 2) setTimeout(() => { if (S.meta && S.meta.v === meta.v) loadChunks(meta, attempt + 1); }, 1500);
+      return;
+    }
+    const list = [];
+    docs.forEach(d => (d.s || []).forEach(a => list.push({id:a[0], name:a[1], level:a[2], dept:a[3], group:a[4], nid:a[5] || '', type:a[6] || '', code:a[7] || ''})));
+    clearTimeout(loadTimer);
+    loadedV = meta.v; S.dbStudents = list; S.dbState = 'ready';
+    syncStudents();
+  } catch(e){
+    if (attempt < 1) setTimeout(() => loadChunks(meta, attempt + 1), 1500);
+    else { clearTimeout(loadTimer); S.dbState = 'error'; S.dbError = e && e.code; renderDb(); update(); }
+  }
+}
+function noDb(){
+  S.dbState = 'nodb';
+  if (!S.dbStudents.length) loadSample();
+  else syncStudents();
+}
+function syncStudents(){
+  if (!S.sample) S.students = S.dbStudents;
+  renderDb(); update();
+}
+async function saveRoster(list, fileName){
+  const v = Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+  const n = Math.max(1, Math.ceil(list.length / CHUNK));
+  const col = db.collection('roster');
+  for (let i = 0; i < n; i++){
+    S.saving = {done:i, total:n}; renderImportPreview();
+    const part = list.slice(i * CHUNK, (i + 1) * CHUNK).map(s => [s.id, s.name, s.level, s.dept, s.group, s.nid || '', s.type || '', s.code || '']);
+    await col.doc(`${v}-${String(i).padStart(3,'0')}`).set({v, i, s: part});
+  }
+  await db.doc('meta/roster').set({v, count:list.length, chunks:n, updatedAt:new Date().toISOString(), fileName});
+  try {
+    const old = await col.where('v', '!=', v).get();
+    for (const d of old.docs) await col.doc(d.id).delete();
+  } catch(e){ /* stale chunks are ignored by readers */ }
+}
+
+/* ---------- rendering: roster panel ---------- */
+function levelChips(list){
+  const c = new Map();
+  list.forEach(s => c.set(s.level, (c.get(s.level) || 0) + 1));
+  return [...c.entries()].sort((a,b) => thCmp(a[0],b[0])).map(([l,n]) => `<span>${esc(l)} · ${fmt(n)}</span>`).join('');
+}
+function renderDb(){
+  const box = $('#dbStatus'), st = S.dbState, importing = !$('#importBox').hidden;
+  const canImport = S.canWrite !== false;
+  const importBtn = canImport && !importing ? `<button class="btn ${S.dbStudents.length ? '' : 'primary'}" type="button" id="openImport">${S.dbStudents.length ? 'นำเข้าหรืออัปเดตรายชื่อจาก Excel' : 'นำเข้ารายชื่อนักเรียนจาก Excel'}</button>` : '';
+  const sampleBtn = !S.sample && !S.dbStudents.length ? `<button class="btn" type="button" id="trySample">ลองดูด้วยข้อมูลตัวอย่าง</button>` : '';
+  let html = '';
+  if (st === 'loading'){
+    html = `<div><span class="dot"></span>กำลังโหลดรายชื่อจากฐานข้อมูล…</div>`;
+  } else if (st === 'timeout'){
+    html = `<div><span class="dot warn"></span>ยังเชื่อมต่อฐานข้อมูลไม่ได้ ระบบจะลองต่อเอง ถ้านานเกินไปให้รีเฟรชหน้า</div>`;
+  } else if (st === 'error'){
+    html = `<div><span class="dot bad"></span>อ่านฐานข้อมูลไม่ได้ ${S.dbError === 'revoked' ? 'สิทธิ์การเข้าถึงหน้านี้เปลี่ยนไป' : 'ลองรีเฟรชหน้าอีกครั้ง'}</div>`;
+  } else if (st === 'nodb'){
+    html = `<div><span class="dot warn"></span>หน้านี้ไม่ได้เชื่อมกับฐานข้อมูล รายชื่อที่นำเข้าจะใช้ได้เฉพาะตอนเปิดหน้านี้ และไม่ถูกบันทึก</div>`;
+  } else if (st === 'empty'){
+    html = `<div class="db-count"><span class="v">0</span><span>คน</span></div><div class="db-meta">ยังไม่มีรายชื่อนักเรียนในฐานข้อมูล นำเข้าไฟล์ Excel ที่มีรหัส ชื่อ ระดับชั้น และสาขาวิชาของนักเรียนทุกคน</div>`;
+  } else {
+    const m = S.meta || {};
+    html = `<div class="db-count"><span class="dot ok"></span><span class="v">${fmt(S.dbStudents.length)}</span><span>คนในฐานข้อมูล</span></div>
+      <div class="db-meta">อัปเดตล่าสุด ${esc(fmtDate(m.updatedAt))}${m.fileName ? ' จากไฟล์ ' + esc(m.fileName) : ''}</div>
+      <div class="lvl-chips">${levelChips(S.dbStudents)}</div>`;
+  }
+  if (st === 'nodb' && S.dbStudents.length){
+    html += `<div class="db-count"><span class="v">${fmt(S.dbStudents.length)}</span><span>คน (นำเข้าชั่วคราว)</span></div><div class="lvl-chips">${levelChips(S.dbStudents)}</div>`;
+  }
+  const readOnly = S.canWrite === false ? `<div class="db-meta">คุณดูได้อย่างเดียว เฉพาะเจ้าของหรือผู้มีสิทธิ์แก้ไขเท่านั้นที่นำเข้ารายชื่อได้</div>` : '';
+  box.innerHTML = html + readOnly + ((importBtn || sampleBtn) && st !== 'loading' ? `<div class="row">${importBtn}${sampleBtn}</div>` : '');
+  const ob = $('#openImport'); if (ob) ob.onclick = openImport;
+  const sb = $('#trySample'); if (sb) sb.onclick = loadSample;
+}
+function openImport(){
+  $('#importBox').hidden = false; S.master = null; S.confirmReplace = false;
+  $('#mode-replace').checked = true;
+  renderMap('master'); renderImportPreview(); renderDb();
+}
+function closeImport(){
+  $('#importBox').hidden = true; S.master = null; S.saving = null; S.confirmReplace = false;
+  renderDb();
+}
+function importPlan(){
+  if (!S.master) return null;
+  const r = studentsFromSource(S.master);
+  if (r.missing.length) return {...r};
+  const mode = $('#mode-merge').checked ? 'merge' : 'replace';
+  if (mode === 'replace') return {...r, mode, final:r.list, added:r.list.length, updated:0};
+  const map = new Map(S.dbStudents.map(s => [normId(s.id), s]));
+  let added = 0, updated = 0;
+  r.list.forEach(s => { const k = normId(s.id); if (map.has(k)) updated++; else added++; map.set(k, s); });
+  return {...r, mode, final:[...map.values()], added, updated};
+}
+function renderImportPreview(){
+  const box = $('#importPreview'), btn = $('#saveRoster');
+  $('#modes').hidden = !S.master || !S.dbStudents.length;
+  if (S.saving){
+    box.innerHTML = `<div class="preview">กำลังบันทึก… ส่วนที่ ${S.saving.done + 1} จาก ${S.saving.total}</div>`;
+    btn.disabled = true; return;
+  }
+  const p = importPlan();
+  if (!p){ box.innerHTML = ''; btn.disabled = true; btn.textContent = 'บันทึกลงฐานข้อมูล'; btn.className = 'btn primary'; return; }
+  if (p.missing.length){
+    box.innerHTML = `<div class="preview err">ยังไม่ได้เลือกคอลัมน์: ${esc(p.missing.join(', '))}</div>`;
+    btn.disabled = true; return;
+  }
+  if (!p.list.length){
+    box.innerHTML = `<div class="preview err">ไม่พบแถวที่มีรหัสนักเรียน ตรวจ "แถวหัวตาราง" และคอลัมน์ "รหัสนักเรียน"</div>`;
+    btn.disabled = true; return;
+  }
+  const lv = new Set(p.list.map(s => s.level)).size, dp = new Set(p.list.map(s => s.dept)).size;
+  const noNid = p.list.filter(s => !s.nid).length;
+  const extra = [p.skipped ? `ข้ามแถวที่ไม่มีรหัส ${fmt(p.skipped)} แถว` : '', p.dup ? `รหัสซ้ำในไฟล์ ${fmt(p.dup)} รายการ (ใช้แถวล่าสุด)` : '', noNid && noNid < p.list.length ? `ไม่มีเลขประจำตัวประชาชน ${fmt(noNid)} คน` : ''].filter(Boolean).join(' · ');
+  const what = p.mode === 'merge'
+    ? `เพิ่มใหม่ ${fmt(p.added)} คน อัปเดต ${fmt(p.updated)} คน รวมในฐานข้อมูลเป็น ${fmt(p.final.length)} คน`
+    : `บันทึก ${fmt(p.final.length)} คน${S.dbStudents.length ? ` แทนที่รายชื่อเดิม ${fmt(S.dbStudents.length)} คน` : ''}`;
+  box.innerHTML = `<div class="preview">${what} · พบ ${fmt(lv)} ระดับชั้น ${fmt(dp)} สาขา${extra ? '<br>' + esc(extra) : ''}</div>`;
+  btn.disabled = false;
+  if (S.confirmReplace){ btn.textContent = `ยืนยันแทนที่ด้วย ${fmt(p.final.length)} คน`; btn.className = 'btn danger'; }
+  else { btn.textContent = S.dbState === 'nodb' ? 'ใช้รายชื่อนี้' : 'บันทึกลงฐานข้อมูล'; btn.className = 'btn primary'; }
+}
+$('#cancelImport').onclick = closeImport;
+document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = () => { S.confirmReplace = false; renderImportPreview(); });
+$('#saveRoster').onclick = async () => {
+  const p = importPlan();
+  if (!p || p.missing.length || !p.list.length) return;
+  if (S.dbState === 'nodb'){
+    S.dbStudents = p.final; S.sample = false; syncStudents(); closeImport();
+    toast(`ใช้รายชื่อ ${fmt(p.final.length)} คนแล้ว (ไม่ได้บันทึก)`); return;
+  }
+  if (p.mode === 'replace' && S.dbStudents.length && !S.confirmReplace){ S.confirmReplace = true; renderImportPreview(); return; }
+  if (!db){ toast('ยังเชื่อมต่อฐานข้อมูลไม่ได้ ลองใหม่อีกครั้ง'); return; }
+  try {
+    await saveRoster(p.final, S.master.fileName);
+    if (S.sample) clearSample();
+    closeImport();
+    toast(`บันทึกรายชื่อ ${fmt(p.final.length)} คนลงฐานข้อมูลแล้ว`);
+  } catch(e){
+    S.saving = null; renderImportPreview();
+    const code = e && e.code;
+    toast(code === 'invalid_argument' ? 'บันทึกไม่ได้ บัญชีนี้ไม่มีสิทธิ์แก้ไขฐานข้อมูล' : code === 'quota_exceeded' ? 'ฐานข้อมูลเต็ม ติดต่อผู้ดูแลหน้านี้' : 'บันทึกไม่สำเร็จ ลองอีกครั้ง');
+  }
+};
+
+/* ---------- rendering: column mapping ---------- */
+function renderMap(kind){
+  const box = $('#map-' + kind), src = S[kind];
+  $('#name-' + kind).textContent = src ? src.fileName : (kind === 'fin' ? 'ยังไม่ได้เลือกไฟล์' : 'เลือกไฟล์รายชื่อนักเรียน');
+  if (!src){ box.innerHTML = ''; return; }
+  if (src.rms){
+    box.innerHTML = `<div class="map-meta" style="margin-top:0"><span>รายงานรายชื่อแยกตามกลุ่มจาก RMS</span><span>${fmt(src.rms.sheets)} กลุ่มเรียน</span><span>${fmt(src.rms.list.length)} คน</span><span>อ่านระดับชั้น กลุ่ม และสาขาจากหัวรายงานของแต่ละชีต</span></div>`;
+    return;
+  }
+  const headers = headersOf(src);
+  const opts = sel => '<option value="-1">— ไม่ใช้ —</option>' + headers.map((h,i) => `<option value="${i}"${i===sel?' selected':''}>${esc(h)}</option>`).join('');
+  const sheetSel = src.sheetNames.length > 1
+    ? `<div class="field"><label for="${kind}-sheet">ชีต</label><select id="${kind}-sheet">${src.sheetNames.map(n => `<option${n===src.sheet?' selected':''}>${esc(n)}</option>`).join('')}</select></div>` : '';
+  box.innerHTML = `
+    <div class="map">
+      ${sheetSel}
+      <div class="field"><label for="${kind}-hdr">แถวหัวตาราง</label><input type="number" min="1" id="${kind}-hdr" value="${src.headerRow + 1}"></div>
+      ${FIELDS[kind].map(f => `<div class="field"><label for="${kind}-${f.k}">${esc(f.label)}${f.req?' <span class="req">*</span>':''}</label><select id="${kind}-${f.k}" data-k="${f.k}">${opts(src.map[f.k] ?? -1)}</select></div>`).join('')}
+    </div>
+    <div class="map-meta"><span>ชีต: ${esc(src.sheet)}</span><span>${fmt(dataRows(src).length)} แถวข้อมูล</span><span>ตรวจคอลัมน์ให้ถูกก่อนใช้งาน</span></div>`;
+  const after = () => { if (kind === 'master'){ S.confirmReplace = false; renderImportPreview(); } else update(); };
+  const ss = $('#' + kind + '-sheet');
+  if (ss) ss.onchange = e => { applySheet(kind, src, e.target.value); renderMap(kind); after(); };
+  $('#' + kind + '-hdr').onchange = e => {
+    src.headerRow = Math.max(1, parseInt(e.target.value,10) || 1) - 1;
+    src.map = autoMap(kind, headersOf(src)); renderMap(kind); after();
+  };
+  box.querySelectorAll('select[data-k]').forEach(el => el.onchange = () => { src.map[el.dataset.k] = parseInt(el.value,10); after(); });
+}
+
+/* ---------- rendering: results ---------- */
+function pct(a,b){ return b ? Math.round(a / b * 1000) / 10 : 0; }
+function renderResults(){
+  const out = $('#results'), R = S.result;
+  if (R.error){ out.innerHTML = `<div class="msg"><strong>${esc(R.error)}</strong>${R.hint ? `<span>${esc(R.hint)}</span>` : ''}</div>`; return; }
+  const total = R.students.length, unpaid = total - R.paid, showGroup = S.byGroup;
+  if (!R.groups.find(g => g.key === S.selected)) S.selected = R.groups[0] ? R.groups[0].key : null;
+
+  const rows = R.groups.map(g => {
+    const p = pct(g.paid, g.list.length);
+    return `<tr class="grp${g.key===S.selected?' sel':''}" tabindex="0" data-key="${esc(g.key)}">
+      <td><span class="lvl">${esc(g.level)}</span></td><td>${esc(g.dept)}</td>${showGroup?`<td>${esc(g.group)}</td>`:''}
+      <td class="num">${fmt(g.list.length)}</td><td class="num">${fmt(g.paid)}</td>
+      <td class="num">${g.list.length-g.paid ? `<span class="pill warn">${fmt(g.list.length-g.paid)}</span>` : '<span class="muted">0</span>'}</td>
+      <td><div class="bar"><i><b style="width:${p}%"></b></i><span>${p}%</span></div></td>
+      <td class="num">${fmt(g.amount)}</td></tr>`;
+  }).join('');
+
+  out.innerHTML = `
+    <div class="stats">
+      <div class="stat"><span class="v">${fmt(total)}</span><span class="k">นักเรียนในฐานข้อมูล</span></div>
+      <div class="stat ok"><span class="v">${fmt(R.paid)}</span><span class="k">ชำระแล้ว (${pct(R.paid,total)}%)</span></div>
+      <div class="stat warn"><span class="v">${fmt(unpaid)}</span><span class="k">ยังไม่ชำระ</span></div>
+      <button class="stat bad" type="button" id="goUnmatched"><span class="v">${fmt(R.unmatched.length)}</span><span class="k">อยู่ในไฟล์การเงิน แต่ไม่พบในรายชื่อ</span></button>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>ระดับชั้น</th><th>สาขาวิชา / ช่าง</th>${showGroup?'<th>กลุ่ม</th>':''}<th class="num">ทั้งหมด</th><th class="num">ชำระแล้ว</th><th class="num">ค้างชำระ</th><th>สัดส่วนที่ชำระ</th><th class="num">ยอดเงิน (บาท)</th></tr></thead>
+      <tbody>${rows}
+      <tr class="total"><td colspan="${showGroup?3:2}">รวม ${fmt(R.groups.length)} กลุ่ม</td><td class="num">${fmt(total)}</td><td class="num">${fmt(R.paid)}</td><td class="num">${fmt(unpaid)}</td><td><div class="bar"><i><b style="width:${pct(R.paid,total)}%"></b></i><span>${pct(R.paid,total)}%</span></div></td><td class="num">${fmt(R.groups.reduce((t,g)=>t+g.amount,0))}</td></tr>
+      </tbody></table></div>
+    <div class="detail" id="detail"></div>
+    <div class="detail" id="unmatched"></div>
+    ${R.dup || R.multi ? `<div class="note">${R.dup ? `<p>พบ${MATCH_LABEL[S.matchBy]}ซ้ำในรายชื่อนักเรียน ${fmt(R.dup)} รายการ ระบบใช้รายการล่าสุด</p>` : ''}${R.multi ? `<p>มีนักเรียน ${fmt(R.multi)} คนที่ปรากฏในไฟล์การเงินมากกว่า 1 ครั้ง (เช่น แบ่งจ่าย) ยอดเงินถูกรวมให้แล้ว</p>` : ''}</div>` : ''}`;
+
+  out.querySelectorAll('tr.grp').forEach(tr => {
+    const go = () => { S.selected = tr.dataset.key; out.querySelectorAll('tr.grp').forEach(t => t.classList.toggle('sel', t === tr)); renderDetail(); };
+    tr.onclick = go;
+    tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } };
+  });
+  $('#goUnmatched').onclick = () => $('#unmatched').scrollIntoView({behavior:'smooth', block:'start'});
+  renderDetail(); renderUnmatched();
+}
+function renderDetail(){
+  const box = $('#detail'), R = S.result;
+  const g = R.groups.find(x => x.key === S.selected);
+  if (!g){ box.innerHTML = ''; return; }
+  const q = S.q.trim().toLowerCase();
+  const list = g.list.filter(s => (S.filter === 'all' || (S.filter === 'paid') === s.paid) && (!q || (s.id + ' ' + (s.nid || '') + ' ' + s.name).toLowerCase().includes(q)));
+  const chip = (v, t) => `<button type="button" class="chip" data-f="${v}" aria-pressed="${S.filter===v}">${t}</button>`;
+  box.innerHTML = `
+    <div class="detail-head">
+      <div><span class="eyebrow">รายชื่อในกลุ่มที่เลือก</span><h3>${esc(g.level)} · ${esc(g.dept)}${g.group?` · กลุ่ม ${esc(g.group)}`:''}</h3></div>
+      <div class="detail-tools">
+        <div class="chips">${chip('all','ทั้งหมด '+g.list.length)}${chip('paid','ชำระแล้ว '+g.paid)}${chip('unpaid','ค้างชำระ '+(g.list.length-g.paid))}</div>
+        <input type="search" id="q" placeholder="ค้นหารหัสหรือชื่อ" value="${esc(S.q)}" aria-label="ค้นหารหัสหรือชื่อ">
+      </div>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th class="num">ที่</th><th>รหัสนักเรียน</th><th>ชื่อ-สกุล</th>${S.byGroup?'':'<th>กลุ่ม</th>'}<th>เลขประจำตัวประชาชน</th><th>ประเภท</th><th>สถานะ</th><th class="num">จำนวนเงิน (บาท)</th></tr></thead>
+      <tbody>${list.map((s,i) => `<tr><td class="num">${i+1}</td><td class="mono">${esc(s.id)}</td><td>${esc(s.name)}</td>${S.byGroup?'':`<td>${esc(s.group)}</td>`}<td class="mono">${esc(s.nid || '–')}</td><td>${esc(s.type || '–')}</td><td>${s.paid?'<span class="pill ok">ชำระแล้ว</span>':'<span class="pill warn">ค้างชำระ</span>'}</td><td class="num">${s.paid?fmt(s.amount):'–'}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">ไม่มีรายชื่อตามเงื่อนไขนี้</td></tr>'}</tbody>
+    </table></div>`;
+  box.querySelectorAll('.chip').forEach(b => b.onclick = () => { S.filter = b.dataset.f; renderDetail(); });
+  const qi = $('#q');
+  qi.oninput = () => { S.q = qi.value; const pos = qi.selectionStart; renderDetail(); const n = $('#q'); n.focus(); n.setSelectionRange(pos,pos); };
+}
+function renderUnmatched(){
+  const box = $('#unmatched'), U = S.result.unmatched;
+  box.innerHTML = `
+    <div class="detail-head"><div><span class="eyebrow">ต้องตรวจสอบ</span><h3>อยู่ในไฟล์การเงิน แต่ไม่พบในรายชื่อนักเรียน (${fmt(U.length)})</h3></div></div>
+    ${U.length ? `<div class="scroll"><table>
+      <thead><tr><th class="num">แถวในไฟล์การเงิน</th><th>รหัสที่กรอก</th><th>ชื่อ-สกุล</th><th class="num">จำนวนเงิน (บาท)</th></tr></thead>
+      <tbody>${U.map(u => `<tr><td class="num">${u.line}</td><td class="mono">${esc(u.id)}</td><td>${esc(u.name)}</td><td class="num">${fmt(u.amount)}</td></tr>`).join('')}</tbody>
+    </table></div><div class="note"><p>มักเกิดจากรหัสพิมพ์ผิด นักเรียนใหม่ที่ยังไม่อยู่ในฐานข้อมูล หรือชื่อสะกดต่างกัน ถ้าเป็นนักเรียนใหม่ให้นำเข้าแบบ "เพิ่มคนใหม่" ในกล่องที่ 1</p></div>` : '<div class="empty">จับคู่ได้ครบทุกรายการ</div>'}`;
+}
+function update(){
+  $('#sampleBar').hidden = !S.sample;
+  S.result = compute();
+  renderResults();
+}
+
+/* ---------- export ---------- */
+function sheetName(raw, used){
+  let base = String(raw).replace(/[:\\\/?*\[\]]/g,' ').replace(/\s+/g,' ').trim().slice(0,31) || 'Sheet';
+  let n = base, i = 2;
+  while (used.has(n.toLowerCase())){ const suf = ' (' + i++ + ')'; n = base.slice(0, 31 - suf.length) + suf; }
+  used.add(n.toLowerCase()); return n;
+}
+function buildWorkbook(){
+  const R = S.result, wb = XLSX.utils.book_new(), used = new Set(), g3 = S.byGroup;
+  const sum = [['ระดับชั้น','สาขาวิชา', ...(g3?['กลุ่ม']:[]), 'นักเรียนทั้งหมด','ชำระแล้ว','ค้างชำระ','ร้อยละที่ชำระ','ยอดเงิน (บาท)']];
+  R.groups.forEach(g => sum.push([g.level, g.dept, ...(g3?[g.group]:[]), g.list.length, g.paid, g.list.length-g.paid, pct(g.paid,g.list.length), g.amount]));
+  sum.push(['รวม','', ...(g3?['']:[]), R.students.length, R.paid, R.students.length-R.paid, pct(R.paid,R.students.length), R.groups.reduce((t,g)=>t+g.amount,0)]);
+  const ws0 = XLSX.utils.aoa_to_sheet(sum); ws0['!cols'] = [{wch:10},{wch:26},...(g3?[{wch:8}]:[]),{wch:14},{wch:10},{wch:10},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws0, sheetName('สรุป', used));
+  R.groups.forEach(g => {
+    const aoa = [[`${g.level} ${g.dept}${g.group?' กลุ่ม '+g.group:''}`], [], ['ที่','รหัสนักเรียน','ชื่อ-สกุล','กลุ่ม','เลขประจำตัวประชาชน','ประเภท','สถานะ','จำนวนเงิน (บาท)']];
+    [...g.list].sort((a,b) => (b.paid - a.paid) || thCmp(a.group,b.group) || thCmp(a.id,b.id)).forEach((s,i) => aoa.push([i+1, s.id, s.name, s.group, s.nid || '', s.type || '', s.paid?'ชำระแล้ว':'ค้างชำระ', s.paid?s.amount:'']));
+    aoa.push([], ['', '', `ชำระแล้ว ${g.paid} คน / ทั้งหมด ${g.list.length} คน`]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{wch:6},{wch:14},{wch:30},{wch:7},{wch:17},{wch:10},{wch:11},{wch:15}];
+    XLSX.utils.book_append_sheet(wb, ws, sheetName(`${g.level} ${g.dept}${g.group?' '+g.group:''}`, used));
+  });
+  const un = [['ระดับชั้น','สาขาวิชา','กลุ่ม','รหัสนักเรียน','ชื่อ-สกุล','เลขประจำตัวประชาชน','ประเภท']];
+  R.groups.forEach(g => g.list.filter(s => !s.paid).forEach(s => un.push([s.level, s.dept, s.group, s.id, s.name, s.nid || '', s.type || ''])));
+  const ws1 = XLSX.utils.aoa_to_sheet(un); ws1['!cols'] = [{wch:10},{wch:26},{wch:7},{wch:14},{wch:30},{wch:17},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws1, sheetName('ค้างชำระทั้งหมด', used));
+  const nm = [['แถวในไฟล์การเงิน','รหัสที่กรอก','ชื่อ-สกุล','จำนวนเงิน (บาท)']];
+  R.unmatched.forEach(u => nm.push([u.line, u.id, u.name, u.amount]));
+  const ws2 = XLSX.utils.aoa_to_sheet(nm); ws2['!cols'] = [{wch:16},{wch:16},{wch:30},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws2, sheetName('ไม่พบในรายชื่อ', used));
+  return wb;
+}
+function toast(t){ const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 4000); }
+$('#exportBtn').onclick = async () => {
+  if (!S.result || S.result.error){ toast('ยังไม่มีผลการคัดแยกให้ดาวน์โหลด'); return; }
+  const wb = buildWorkbook();
+  const d = new Date(), stamp = `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()+543}`;
+  const filename = `ค่าลงทะเบียน_แยกตามชั้นและสาขา_${stamp}.xlsx`;
+  if (downloads){
+    try {
+      const buf = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      await downloads.save({filename, data: new Blob([buf])});
+      toast('บันทึกไฟล์แล้ว: ' + filename);
+    } catch(e){ toast(e && e.code === 'declined' ? 'ยกเลิกการบันทึกไฟล์' : 'บันทึกไฟล์ไม่สำเร็จ ลองอีกครั้ง'); }
+  } else {
+    try { XLSX.writeFile(wb, filename); toast('กำลังดาวน์โหลด ' + filename); }
+    catch(e){ toast('ดาวน์โหลดไม่ได้ในหน้านี้'); }
+  }
+};
+
+/* ---------- inputs ---------- */
+async function loadFile(kind, file){
+  if (!file) return;
+  try {
+    const src = makeSource(kind, file.name, readWorkbook(await file.arrayBuffer()));
+    if (kind === 'fin' && S.sample) clearSample();
+    S[kind] = src;
+    renderMap(kind); update();
+  } catch(e){
+    toast('เปิดไฟล์ "' + file.name + '" ไม่ได้ ตรวจว่าเป็นไฟล์ Excel หรือ CSV');
+  }
+}
+/* Roster: several RMS files at once, or one ordinary spreadsheet */
+async function loadRoster(files){
+  files = [...(files || [])];
+  if (!files.length) return;
+  $('#name-master').textContent = `กำลังอ่าน ${files.length} ไฟล์…`;
+  const books = [];
+  for (const f of files){
+    try { books.push({name:f.name, wb:readWorkbook(await f.arrayBuffer())}); }
+    catch(e){ toast('เปิดไฟล์ "' + f.name + '" ไม่ได้ ตรวจว่าเป็นไฟล์ Excel หรือ CSV'); renderMap('master'); return; }
+  }
+  const rms = books.filter(b => isRms(b.wb)), other = books.filter(b => !isRms(b.wb));
+  if (rms.length && other.length){
+    toast('ไฟล์ ' + other.map(b => b.name).join(', ') + ' ไม่ใช่รายงานรายชื่อแยกตามกลุ่มจาก RMS ให้นำเข้าแยกกัน');
+    renderMap('master'); return;
+  }
+  if (!rms.length && other.length > 1){
+    toast('ไฟล์ Excel ทั่วไปนำเข้าได้ทีละไฟล์ (รายงาน RMS เลือกได้หลายไฟล์)'); renderMap('master'); return;
+  }
+  if (rms.length){
+    const all = {list:[], sheets:0, skipped:0};
+    rms.forEach(b => { const r = parseRms(b.wb); all.list.push(...r.list); all.sheets += r.sheets; all.skipped += r.skipped; });
+    S.master = {fileName: rms.map(b => b.name).join(', '), rms: all};
+  } else {
+    S.master = makeSource('master', books[0].name, books[0].wb);
+  }
+  S.confirmReplace = false;
+  renderMap('master'); renderImportPreview();
+}
+[['fin', f => loadFile('fin', f[0])], ['master', f => loadRoster(f)]].forEach(([kind, handle]) => {
+  const input = $('#file-' + kind), drop = $('#drop-' + kind);
+  input.onchange = () => { const f = [...input.files]; input.value = ''; handle(f); };
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); handle([...e.dataTransfer.files]); });
+});
+$('#matchBy').onchange = e => { S.matchBy = e.target.value; update(); };
+$('#byGroup').onchange = e => { S.byGroup = e.target.checked; S.selected = null; update(); };
+$('#clearSample').onclick = () => { clearSample(); renderDb(); update(); };
+
+/* ---------- sample data (fictional, never saved) ---------- */
+function makeSample(){
+  let seed = 25691118;
+  const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const pickR = a => a[Math.floor(rnd() * a.length)];
+  const fM = ['ธนพล','ณัฐวุฒิ','กิตติศักดิ์','พีรพัฒน์','อนุชา','วรเมธ','ศุภชัย','ชยพล','ธีรภัทร','ภาณุพงศ์','สิทธิชัย','จิรายุ','ปฏิภาณ','รัฐภูมิ','อภิสิทธิ์','ก้องภพ'];
+  const fF = ['ณัฐธิดา','พิมพ์ชนก','กัญญาวีร์','ศิริพร','ปวีณา','สุชาดา','ธิดารัตน์','อรอุมา','จิราพร','วรรณิศา','ชลธิชา','กมลชนก'];
+  const ln = ['ศรีสุข','บุญมา','แก้วประเสริฐ','ทองดี','พรหมวงศ์','จันทร์หอม','สมบูรณ์ชัย','ไชยมงคล','วงศ์ใหญ่','ภูมิพันธ์','อินทร์แก้ว','ศรีวงษา','คำมูล','พลศักดิ์','บุตรดี','มณีรัตน์','สายทอง','นาคสุวรรณ'];
+  const levels = [{lv:'ปวช.1',c:'2',y:'69'},{lv:'ปวช.2',c:'2',y:'68'},{lv:'ปวช.3',c:'2',y:'67'},{lv:'ปวส.1',c:'3',y:'69'},{lv:'ปวส.2',c:'3',y:'68'}];
+  const depts = [{n:'ช่างยนต์',c:'01',f:.05,g:2},{n:'ช่างไฟฟ้ากำลัง',c:'04',f:.1,g:2},{n:'ช่างอิเล็กทรอนิกส์',c:'05',f:.2,g:1},{n:'ช่างก่อสร้าง',c:'06',f:.25,g:1},{n:'เทคโนโลยีสารสนเทศ',c:'21',f:.45,g:1},{n:'การบัญชี',c:'11',f:.85,g:1}];
+  const students = [], paidRows = [];
+  levels.forEach(L => depts.forEach(D => {
+    const groups = L.c === '3' ? 1 : D.g;
+    for (let g = 1; g <= groups; g++){
+      const n = 6 + Math.floor(rnd() * 6);
+      for (let s = 1; s <= n; s++){
+        const female = rnd() < D.f;
+        const id = `${L.y}${L.c}0${D.c}0${g}${String(s).padStart(3,'0')}`;
+        const pre = female ? 'นางสาว' : 'นาย', first = female ? pickR(fF) : pickR(fM), last = pickR(ln);
+        students.push({id, name:`${first} ${last}`, level:L.lv, dept:D.n, group:String(g)});
+        if (rnd() < 0.8) paidRows.push({id, name: `${pre}${first} ${last}`, amount: L.c === '2' ? 2350 : 3150});
+      }
+    }
+  }));
+  paidRows.push({id:'67201010019', name:'นายวีรภัทร ใจดี', amount:2350});
+  paidRows.push({id:'6830211001', name:'นางสาวขวัญข้าว ดวงดี', amount:3150});
+  for (let i = paidRows.length - 1; i > 0; i--){ const j = Math.floor(rnd() * (i + 1)); [paidRows[i], paidRows[j]] = [paidRows[j], paidRows[i]]; }
+  const fin = [['วิทยาลัยเทคนิค (ตัวอย่าง) งานการเงิน'], ['รายงานการรับชำระเงินค่าลงทะเบียน ภาคเรียนที่ 2/2569'], [], ['ลำดับ','วันที่ชำระ','เลขที่ใบเสร็จ','รหัสนักศึกษา','ชื่อ - สกุล','จำนวนเงิน']];
+  paidRows.forEach((p, i) => fin.push([String(i+1), `${2 + Math.floor(i / paidRows.length * 13)}/11/2569`, `R69-${String(1201 + i).padStart(6,'0')}`, p.id, p.name, String(p.amount)]));
+  return {fin, students};
+}
+function loadSample(){
+  const smp = makeSample();
+  S.sample = true; S.sampleFinBackup = S.fin;
+  S.students = smp.students;
+  S.fin = makeSource('fin', 'ตัวอย่าง_รับเงินค่าลงทะเบียน_2-2569.xlsx', {sheetNames:['รับชำระ'], sheets:{'รับชำระ': smp.fin}});
+  renderMap('fin'); renderDb(); update();
+}
+function clearSample(){
+  S.sample = false; S.fin = S.sampleFinBackup; S.sampleFinBackup = null;
+  S.students = S.dbStudents; S.selected = null;
+  renderMap('fin');
+}
+
+renderDb(); update();
+startDb();
+})();
+</script>
+
+</body>
+</html>
